@@ -22,12 +22,11 @@ function UploadPDF() {
       });
       const data = await response.json();
 
-      // Intenta parsear JSON
       try {
         const json = JSON.parse(data.resultado);
         setResultado(json);
       } catch (err) {
-        setResultado(data.resultado); // Si no es JSON válido
+        setResultado(data.resultado); // En caso de error de parseo
       }
     } catch (error) {
       console.error("Error al subir PDF:", error);
@@ -37,7 +36,8 @@ function UploadPDF() {
   };
 
   const copiarAlPortapapeles = () => {
-    navigator.clipboard.writeText(JSON.stringify(resultado, null, 2));
+    const texto = JSON.stringify(resultado, null, 2);
+    navigator.clipboard.writeText(texto);
     alert("JSON copiado al portapapeles");
   };
 
@@ -136,7 +136,7 @@ function UploadPDF() {
           maxHeight: "500px"
         }}>
           <h3 style={{ color: "#00ffaa" }}>Resultado (Texto crudo):</h3>
-          <pre>{resultado}</pre>
+          <pre>{typeof resultado === 'string' ? resultado : JSON.stringify(resultado, null, 2)}</pre>
         </div>
       )}
     </div>
