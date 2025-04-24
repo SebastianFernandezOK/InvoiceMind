@@ -1,12 +1,11 @@
-import UploadPDF from "./components/UploadPDF";
+import ProcesadorFacturas from "./components/ProcesadorFacturas"
 
 function App() {
   return (
     <div style={{ padding: "20px" }}>
       <h1>Procesador de Facturas</h1>
-      <UploadPDF />
+      <ProcesadorFacturas />
     </div>
   );
 }
-
 export default App;

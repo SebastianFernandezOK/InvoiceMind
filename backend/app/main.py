@@ -2,26 +2,23 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import fitz  # PyMuPDF
-import requests
-import os
-import re
-from dotenv import load_dotenv
 
-load_dotenv()
+from backend.app.utils.plantilla import get_json_plantilla
+from backend.app.utils.leer_qr import extraer_qr_desde_pdf
+from backend.app.utils.parsear_qr import extraer_datos_desde_qr_url
+from backend.app.utils.extraer_bs import extraer_datos_desde_texto
 
 app = FastAPI()
 
-# CORS para permitir acceso desde el frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_origins=["http://localhost:5173"]
 )
 
 def extraer_texto_original(pdf_bytes: bytes) -> str:
-    """
-    Extrae solo la sección ORIGINAL del PDF (ignora DUPLICADO/TRIPLICADO).
-    """
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     original_text = ""
 
@@ -29,78 +26,62 @@ def extraer_texto_original(pdf_bytes: bytes) -> str:
         texto = page.get_text()
         if "ORIGINAL" in texto.upper() and not any(x in texto.upper() for x in ["DUPLICADO", "TRIPLICADO"]):
             original_text += texto
-            break  # Solo tomamos el primer ORIGINAL
+            break
 
     return original_text
 
-@app.post("/parse-and-send")
-async def parse_and_send(pdfs: List[UploadFile] = File(...)):
-    textos = []
+@app.post("/procesar-todo-local")
+async def procesar_todo_local(pdfs: List[UploadFile] = File(...)):
+    json_final = get_json_plantilla()
+    texto_completo = ""
 
     for pdf in pdfs:
         content = await pdf.read()
-        texto_original = extraer_texto_original(content)
-        textos.append(texto_original)
 
-    texto_completo = "\n\n".join(textos)
+        # Etapa 1: QR
+        qr_url = extraer_qr_desde_pdf(content)
+        if qr_url:
+            datos_qr = extraer_datos_desde_qr_url(qr_url)
+            factura = json_final["factura"]
+            factura["tipo"] = datos_qr.get("tipo", "")
+            factura["codigo"] = datos_qr.get("codigo", "")
+            factura["punto_venta"] = datos_qr.get("punto_venta", "")
+            factura["numero_comprobante"] = datos_qr.get("numero_comprobante", "")
+            factura["fecha_emision"] = datos_qr.get("fecha_emision", "")
+            factura["emisor"]["cuit"] = datos_qr.get("emisor_cuit", "")
+            factura["qr"] = {"contenido": datos_qr.get("qr_completo", "")}
 
-    prompt = f"""
-Te paso el texto de una factura. Extraé todos los datos clave del **receptor** (cliente de la factura), no del emisor.
+        # Etapa 2: texto original
+        texto = extraer_texto_original(content)
+        texto_completo += texto + "\n\n"
 
-Formato esperado (por cada factura):
+        # Etapa 3: análisis con BeautifulSoup y regex
+        datos_bs = extraer_datos_desde_texto(texto)
+        factura = json_final["factura"]
 
-{{
-  "razon_social": "",
-  "cuit": "",               ← CUIT del cliente
-  "fecha": "",
-  "condicion_iva": "",
-  "domicilio": "",
-  "importe_neto_gravado": 0.00,
-  "iva": {{
-    "21": 0.00,
-    "27": 0.00,
-    "10.5": 0.00,
-    "5": 0.00,
-    "2.5": 0.00,
-    "0": 0.00
-  }},
-  "importe_otros_tributos": 0.00,
-  "importe_total": 0.00,
-  "detalle": [
-    {{
-      "producto_servicio": "",
-      "cantidad": 0,
-      "umedida": "",
-      "precio_unit": 0.00,
-      "subtotal": 0.00,
-      "alicuota": "",
-      "iva": 0.00,
-      "subtotal_iva": 0.00
-    }}
-  ]
-}}
+        # Receptor
+        factura["receptor"]["cuit"] = datos_bs.get("receptor_cuit", factura["receptor"]["cuit"])
+        factura["receptor"]["razon_social"] = datos_bs.get("receptor_razon_social", factura["receptor"]["razon_social"])
+        factura["receptor"]["domicilio_comercial"] = datos_bs.get("receptor_domicilio", factura["receptor"]["domicilio_comercial"])
 
-Texto completo de la factura:
-{texto_completo}
-"""
+        # Emisor
+        factura["emisor"]["domicilio_comercial"] = datos_bs.get("emisor_domicilio", factura["emisor"]["domicilio_comercial"])
 
+        # Fechas
+        factura["fecha_vencimiento_pago"] = datos_bs.get("fecha_vencimiento_pago", "")
+        factura["periodo_facturado"]["desde"] = datos_bs.get("periodo_desde", "")
+        factura["periodo_facturado"]["hasta"] = datos_bs.get("periodo_hasta", "")
 
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }]
+        # Totales
+        factura["totales"]["importe_neto_gravado"] = datos_bs.get("importe_neto_gravado", None)
+        factura["totales"]["iva_21"] = datos_bs.get("iva_21", None)
+        factura["totales"]["importe_total"] = datos_bs.get("importe_total", factura["totales"]["importe_total"])
+
+        # Ítems
+        if "items" in datos_bs:
+            factura["items"] = datos_bs["items"]
+
+    return {
+        "json": json_final,
+        "texto": texto_completo.strip()
     }
-
-    response = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={os.getenv('GEMINI_API_KEY')}",
-        json=payload
-    )
-
-    if response.status_code != 200:
-        return {"error": "Fallo en Gemini", "detalle": response.text}
-
-    resultado_raw = response.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-    # Limpiar el bloque ```json ... ```
-    json_limpio = re.search(r'\{.*\}|\[.*\]', resultado_raw, re.DOTALL)
-    return {"resultado": json_limpio.group(0) if json_limpio else resultado_raw}
