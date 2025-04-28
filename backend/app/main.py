@@ -2,13 +2,15 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import fitz  # PyMuPDF
-
-from utils.plantilla import get_json_plantilla
-from utils.leer_qr import extraer_qr_desde_pdf
-from utils.parsear_qr import extraer_datos_desde_qr_url
-from utils.extraer_bs import extraer_datos_desde_texto
-from utils.extraer_bs_html import extraer_datos_desde_html
-from utils.parsear_por_claves import parsear_por_claves
+from pydantic import BaseModel
+import requests
+import os
+from app.utils.plantilla import get_json_plantilla
+from app.utils.leer_qr import extraer_qr_desde_pdf
+from app.utils.parsear_qr import extraer_datos_desde_qr_url
+from app.utils.extraer_bs import extraer_datos_desde_texto
+from app.utils.extraer_bs_html import extraer_datos_desde_html
+from app.utils.parsear_por_claves import parsear_por_claves
 
 app = FastAPI()
 
@@ -17,7 +19,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_origins=["http://localhost:5173"]
+    allow_origins=["*"]
 )
 
 def extraer_texto_original(pdf_bytes: bytes) -> str:
@@ -100,4 +102,69 @@ async def procesar_todo_local(pdfs: List[UploadFile] = File(...)):
     return {
         "json": json_final,
         "texto": texto_completo.strip()
+    }
+
+# Importar también load_dotenv para GEMINI_API_KEY si no lo hiciste
+from dotenv import load_dotenv
+load_dotenv()
+
+# API Key de Gemini
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+class CompletarRequest(BaseModel):
+    json_parcial: dict
+    texto_origen: str
+
+@app.post("/completar-con-gemini")
+async def completar_con_gemini(payload: CompletarRequest):
+    prompt = f"""
+Actúa como un asistente experto en procesamiento de facturas.
+
+Tarea:
+- Completar el JSON parcial que te paso usando la información encontrada en el texto de la factura.
+- Corregir cualquier valor mal asignado en el JSON si en el texto figura diferente.
+- No inventes datos. Si no está en el texto, deja el campo vacío ("") o null.
+- NO agregues claves nuevas ni cambies los nombres de los campos existentes.
+- Mantén exactamente la misma estructura y formato del JSON.
+
+Factura original:
+
+
+# TEXTO ORIGINAL:
+{payload.texto_origen}
+
+# JSON PARCIAL:
+{payload.json_parcial}
+
+Devolveme el JSON corregido y completo, y nada más.
+    """
+
+    # Armar el request para Gemini
+    payload_gemini = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }]
+    }
+
+    response = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={GEMINI_API_KEY}",
+        json=payload_gemini
+    )
+
+    if response.status_code != 200:
+        return {"error": "Error llamando a Gemini", "detalle": response.text}
+
+    contenido = response.json()
+    raw_json = contenido["candidates"][0]["content"]["parts"][0]["text"]
+
+    # Limpiar si devuelve con ```
+    import re
+    match = re.search(r'\{.*\}|\[.*\]', raw_json, re.DOTALL)
+    if match:
+        json_final = match.group(0)
+    else:
+        json_final = raw_json
+
+    return {
+        "json_completo": json_final
     }
