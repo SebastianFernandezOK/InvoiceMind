@@ -1,0 +1,3 @@
+codigo,cuit_emisor,cuit_receptor,domicilio_emisor,domicilio_receptor,fecha_emision,importe_total,iva_21,neto_gravado,numero_comprobante,punto_venta,razon_emisor,razon_receptor,tipo
+1,30712170618,,,,2025-04-01,,,,7033,2,,,1
+1,30712170618,,,,2025-04-01,,,,7032,2,,,1
