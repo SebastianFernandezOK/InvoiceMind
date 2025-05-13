@@ -73,7 +73,7 @@ function ProcesadorFacturas() {
         textAlign: "center"
       }}>
         <h2 style={{ fontSize: "24px", marginBottom: "10px" }}>Procesador de Facturas</h2>
-        <p style={{ fontWeight: "bold", margin: 0 }}>Convierte PDF de Facturas</p>
+        <p style={{ fontWeight: "bold", margin: 0 }}>Centraliza información de facturas en PDF</p>
         <p style={{ fontSize: "14px", color: "#666", marginBottom: "20px" }}>
           Procesa múltiples facturas PDF y obtené un Excel con los datos estructurados.
         </p>

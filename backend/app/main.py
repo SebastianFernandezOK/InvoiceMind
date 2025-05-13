@@ -1,10 +1,16 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+
 from typing import List
 import fitz  # PyMuPDF
+import csv
+from io import StringIO, BytesIO
+import base64
+import json
 import pandas as pd
-from io import BytesIO
+import asyncio
+
 from app.utils.plantilla import get_json_plantilla
 from app.utils.leer_qr import extraer_qr_desde_pdf
 from app.utils.parsear_qr import extraer_datos_desde_qr_url
@@ -33,14 +39,13 @@ def extraer_texto_original(pdf_bytes: bytes) -> str:
 
 @app.post("/procesar-excel")
 async def procesar_excel(pdfs: List[UploadFile] = File(...)):
-    facturas_finales = []
+    resultados = []
 
-    for pdf in pdfs:
+    async def procesar_pdf(pdf):
         content = await pdf.read()
-        json_final = get_json_plantilla()
         texto = extraer_texto_original(content)
 
-        # QR
+        json_final = get_json_plantilla()
         qr_url = extraer_qr_desde_pdf(content)
         if qr_url:
             datos_qr = extraer_datos_desde_qr_url(qr_url)
@@ -58,13 +63,11 @@ async def procesar_excel(pdfs: List[UploadFile] = File(...)):
                 "qr": {"contenido": datos_qr.get("qr_completo", "")}
             })
 
-        # Texto con BS
         datos_bs = extraer_datos_desde_texto(texto)
         factura = json_final["factura"]
         factura["receptor"]["cuit"] = datos_bs.get("receptor_cuit", "")
         factura["receptor"]["razon_social"] = datos_bs.get("receptor_razon_social", "")
         factura["receptor"]["domicilio_comercial"] = datos_bs.get("receptor_domicilio", "")
-        factura["emisor"]["razon_social"] = datos_bs.get("emisor_razon_social", "")
         factura["emisor"]["domicilio_comercial"] = datos_bs.get("emisor_domicilio", "")
         factura["fecha_vencimiento_pago"] = datos_bs.get("fecha_vencimiento_pago", "")
         factura["periodo_facturado"]["desde"] = datos_bs.get("periodo_desde", "")
@@ -76,44 +79,43 @@ async def procesar_excel(pdfs: List[UploadFile] = File(...)):
         if "items" in datos_bs:
             factura["items"] = datos_bs["items"]
 
-        # LLM
         if campos_incompletos(factura):
             try:
-                json_final["factura"] = completar_con_llm(factura, texto.strip())
+                factura_completa = await completar_con_llm(factura, texto.strip())
+                factura = factura_completa
             except Exception:
                 pass
 
-        facturas_finales.append(json_final["factura"])
+        return factura
 
-    # Aplanar para Excel
+    tareas = [procesar_pdf(pdf) for pdf in pdfs]
+    facturas = await asyncio.gather(*tareas)
+
     filas = []
-    for f in facturas_finales:
-        fila = {
+    for f in facturas:
+        row = {
+            "fecha_emision": f.get("fecha_emision", ""),
             "tipo": f.get("tipo", ""),
             "codigo": f.get("codigo", ""),
             "punto_venta": f.get("punto_venta", ""),
             "numero_comprobante": f.get("numero_comprobante", ""),
-            "fecha_emision": f.get("fecha_emision", ""),
-            "fecha_vencimiento_pago": f.get("fecha_vencimiento_pago", ""),
-            "emisor_cuit": f.get("emisor", {}).get("cuit", ""),
-            "emisor_razon_social": f.get("emisor", {}).get("razon_social", ""),
-            "emisor_domicilio": f.get("emisor", {}).get("domicilio_comercial", ""),
-            "receptor_cuit": f.get("receptor", {}).get("cuit", ""),
-            "receptor_razon_social": f.get("receptor", {}).get("razon_social", ""),
-            "receptor_domicilio": f.get("receptor", {}).get("domicilio_comercial", ""),
-            "importe_total": f.get("totales", {}).get("importe_total", 0),
-            "iva_21": f.get("totales", {}).get("iva_21", 0),
-            "neto_gravado": f.get("totales", {}).get("importe_neto_gravado", 0),
-            "cae": f.get("cae", {}).get("numero", "")
+            "cuit_emisor": f.get("emisor", {}).get("cuit", ""),
+            "razon_emisor": f.get("emisor", {}).get("razon_social", ""),
+            "domicilio_emisor": f.get("emisor", {}).get("domicilio_comercial", ""),
+            "cuit_receptor": f.get("receptor", {}).get("cuit", ""),
+            "razon_receptor": f.get("receptor", {}).get("razon_social", ""),
+            "domicilio_receptor": f.get("receptor", {}).get("domicilio_comercial", ""),
+            "importe_total": f.get("totales", {}).get("importe_total", ""),
+            "iva_21": f.get("totales", {}).get("iva_21", ""),
+            "neto_gravado": f.get("totales", {}).get("importe_neto_gravado", "")
         }
-        filas.append(fila)
+        filas.append(row)
 
     df = pd.DataFrame(filas)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
-
+        df.to_excel(writer, index=False, sheet_name="Facturas")
     output.seek(0)
-    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={
-        "Content-Disposition": "attachment; filename=facturas.xlsx"
-    })
+
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": "attachment; filename=facturas.xlsx"})
