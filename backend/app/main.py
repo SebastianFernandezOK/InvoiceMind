@@ -1,11 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, Body
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from typing import List
 import fitz  # PyMuPDF
-import csv
-from io import StringIO
-import base64
-import json
+import pandas as pd
+from io import BytesIO
 from app.utils.plantilla import get_json_plantilla
 from app.utils.leer_qr import extraer_qr_desde_pdf
 from app.utils.parsear_qr import extraer_datos_desde_qr_url
@@ -32,16 +31,16 @@ def extraer_texto_original(pdf_bytes: bytes) -> str:
             break
     return original_text
 
-@app.post("/procesar-todo-local")
-async def procesar_todo_local(pdfs: List[UploadFile] = File(...)):
-    facturas = []
-    textos = []
+@app.post("/procesar-excel")
+async def procesar_excel(pdfs: List[UploadFile] = File(...)):
+    facturas_finales = []
+
     for pdf in pdfs:
         content = await pdf.read()
         json_final = get_json_plantilla()
         texto = extraer_texto_original(content)
-        textos.append(texto)
 
+        # QR
         qr_url = extraer_qr_desde_pdf(content)
         if qr_url:
             datos_qr = extraer_datos_desde_qr_url(qr_url)
@@ -59,11 +58,13 @@ async def procesar_todo_local(pdfs: List[UploadFile] = File(...)):
                 "qr": {"contenido": datos_qr.get("qr_completo", "")}
             })
 
+        # Texto con BS
         datos_bs = extraer_datos_desde_texto(texto)
         factura = json_final["factura"]
         factura["receptor"]["cuit"] = datos_bs.get("receptor_cuit", "")
         factura["receptor"]["razon_social"] = datos_bs.get("receptor_razon_social", "")
         factura["receptor"]["domicilio_comercial"] = datos_bs.get("receptor_domicilio", "")
+        factura["emisor"]["razon_social"] = datos_bs.get("emisor_razon_social", "")
         factura["emisor"]["domicilio_comercial"] = datos_bs.get("emisor_domicilio", "")
         factura["fecha_vencimiento_pago"] = datos_bs.get("fecha_vencimiento_pago", "")
         factura["periodo_facturado"]["desde"] = datos_bs.get("periodo_desde", "")
@@ -75,122 +76,44 @@ async def procesar_todo_local(pdfs: List[UploadFile] = File(...)):
         if "items" in datos_bs:
             factura["items"] = datos_bs["items"]
 
-        facturas.append(json_final)
-
-    return {"facturas": facturas, "textos": textos}
-@app.post("/completar-json-con-gemini")
-async def completar_json_con_gemini(data: dict = Body(...)):
-    try:
-        json_incompleto = data.get("json")
-        texto_factura = data.get("texto", "")
-
-        if not json_incompleto or not texto_factura:
-            return {"error": "Faltan campos 'json' o 'texto' en el body."}
-
-        if not campos_incompletos(json_incompleto):
-            return {"json": json_incompleto, "info": "No hay campos incompletos."}
-
-        json_completado = completar_con_llm(json_incompleto, texto_factura.strip())
-
-        # 🔍 Agregá este print para ver qué devuelve Gemini
-        print("✅ JSON COMPLETADO:")
-        print(json.dumps(json_completado, indent=2))
-
-        return {"json": json_completado}
-
-    except Exception as e:
-        print("❌ ERROR en completar-json-con-gemini:", str(e))
-        return {"error": f"Error procesando con Gemini: {str(e)}"}
-
-
-import os
-
-
-@app.post("/procesar-y-exportar-csv")
-async def procesar_y_exportar_csv(pdfs: List[UploadFile] = File(...)):
-    facturas_csv = []
-    facturas_json = []
-    headers_csv = set()
-
-    for pdf in pdfs:
-        content = await pdf.read()
-        json_final = get_json_plantilla()
-        texto = extraer_texto_original(content)
-
-        qr_url = extraer_qr_desde_pdf(content)
-        if qr_url:
-            datos_qr = extraer_datos_desde_qr_url(qr_url)
-            factura = json_final["factura"]
-            factura.update({
-                "tipo": datos_qr.get("tipo", ""),
-                "codigo": datos_qr.get("codigo", ""),
-                "punto_venta": datos_qr.get("punto_venta", ""),
-                "numero_comprobante": datos_qr.get("numero_comprobante", ""),
-                "fecha_emision": datos_qr.get("fecha_emision", ""),
-                "emisor": {
-                    **factura.get("emisor", {}),
-                    "cuit": datos_qr.get("emisor_cuit", "")
-                },
-                "qr": {"contenido": datos_qr.get("qr_completo", "")}
-            })
-
-        datos_bs = extraer_datos_desde_texto(texto)
-        factura = json_final["factura"]
-        factura["receptor"]["cuit"] = datos_bs.get("receptor_cuit", "")
-        factura["receptor"]["razon_social"] = datos_bs.get("receptor_razon_social", "")
-        factura["receptor"]["domicilio_comercial"] = datos_bs.get("receptor_domicilio", "")
-        factura["emisor"]["domicilio_comercial"] = datos_bs.get("emisor_domicilio", "")
-        factura["fecha_vencimiento_pago"] = datos_bs.get("fecha_vencimiento_pago", "")
-        factura["periodo_facturado"]["desde"] = datos_bs.get("periodo_desde", "")
-        factura["periodo_facturado"]["hasta"] = datos_bs.get("periodo_hasta", "")
-        factura["totales"]["importe_neto_gravado"] = datos_bs.get("importe_neto_gravado", None)
-        factura["totales"]["iva_21"] = datos_bs.get("iva_21", None)
-        factura["totales"]["importe_total"] = datos_bs.get("importe_total", "")
-
-        if "items" in datos_bs:
-            factura["items"] = datos_bs["items"]
-
-        if campos_incompletos(json_final["factura"]):
+        # LLM
+        if campos_incompletos(factura):
             try:
-                json_final["factura"] = completar_con_llm(json_final["factura"], texto.strip())
-                json_final["_completada_por_gemini"] = True
+                json_final["factura"] = completar_con_llm(factura, texto.strip())
             except Exception:
-                json_final["_completada_por_gemini"] = False
-        else:
-            json_final["_completada_por_gemini"] = False
+                pass
 
-        facturas_json.append(json_final)
+        facturas_finales.append(json_final["factura"])
 
-        flat_factura = {
-            "fecha_emision": factura.get("fecha_emision", ""),
-            "tipo": factura.get("tipo", ""),
-            "codigo": factura.get("codigo", ""),
-            "punto_venta": factura.get("punto_venta", ""),
-            "numero_comprobante": factura.get("numero_comprobante", ""),
-            "cuit_emisor": factura.get("emisor", {}).get("cuit", ""),
-            "razon_emisor": factura.get("emisor", {}).get("razon_social", ""),
-            "domicilio_emisor": factura.get("emisor", {}).get("domicilio_comercial", ""),
-            "cuit_receptor": factura.get("receptor", {}).get("cuit", ""),
-            "razon_receptor": factura.get("receptor", {}).get("razon_social", ""),
-            "domicilio_receptor": factura.get("receptor", {}).get("domicilio_comercial", ""),
-            "importe_total": factura.get("totales", {}).get("importe_total", ""),
-            "iva_21": factura.get("totales", {}).get("iva_21", ""),
-            "neto_gravado": factura.get("totales", {}).get("importe_neto_gravado", "")
+    # Aplanar para Excel
+    filas = []
+    for f in facturas_finales:
+        fila = {
+            "tipo": f.get("tipo", ""),
+            "codigo": f.get("codigo", ""),
+            "punto_venta": f.get("punto_venta", ""),
+            "numero_comprobante": f.get("numero_comprobante", ""),
+            "fecha_emision": f.get("fecha_emision", ""),
+            "fecha_vencimiento_pago": f.get("fecha_vencimiento_pago", ""),
+            "emisor_cuit": f.get("emisor", {}).get("cuit", ""),
+            "emisor_razon_social": f.get("emisor", {}).get("razon_social", ""),
+            "emisor_domicilio": f.get("emisor", {}).get("domicilio_comercial", ""),
+            "receptor_cuit": f.get("receptor", {}).get("cuit", ""),
+            "receptor_razon_social": f.get("receptor", {}).get("razon_social", ""),
+            "receptor_domicilio": f.get("receptor", {}).get("domicilio_comercial", ""),
+            "importe_total": f.get("totales", {}).get("importe_total", 0),
+            "iva_21": f.get("totales", {}).get("iva_21", 0),
+            "neto_gravado": f.get("totales", {}).get("importe_neto_gravado", 0),
+            "cae": f.get("cae", {}).get("numero", "")
         }
+        filas.append(fila)
 
-        facturas_csv.append(flat_factura)
-        headers_csv.update(flat_factura.keys())
+    df = pd.DataFrame(filas)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
 
-    # ✅ Usamos delimitador punto y coma
-    csv_buffer = StringIO()
-    writer = csv.DictWriter(csv_buffer, fieldnames=sorted(headers_csv), delimiter=';')
-    writer.writeheader()
-    writer.writerows(facturas_csv)
-    csv_text = csv_buffer.getvalue()
-    csv_base64 = base64.b64encode(csv_text.encode("utf-8")).decode("utf-8")
-
-    return {
-        "csv_text": csv_text,
-        "csv_base64": csv_base64,
-        "facturas": facturas_json
-    }
+    output.seek(0)
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={
+        "Content-Disposition": "attachment; filename=facturas.xlsx"
+    })
