@@ -1,23 +1,27 @@
-from fastapi import FastAPI, UploadFile, File, Body
+from fastapi import FastAPI, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from sqlalchemy.orm import Session
 from typing import List
 import fitz  # PyMuPDF
-import csv
-from io import StringIO, BytesIO
-import base64
-import json
+from io import BytesIO
 import pandas as pd
 import asyncio
 
+from app.core.database import get_db
 from app.utils.plantilla import get_json_plantilla
 from app.utils.leer_qr import extraer_qr_desde_pdf
 from app.utils.parsear_qr import extraer_datos_desde_qr_url
 from app.utils.extraer_bs import extraer_datos_desde_texto
 from app.utils.completar_llm import completar_con_llm, campos_incompletos
+from app.routes import historial
+from app.crud.historial import crear_historial
+from app.core.database import Base, engine
+
 
 app = FastAPI()
+app.include_router(historial.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,10 +42,13 @@ def extraer_texto_original(pdf_bytes: bytes) -> str:
     return original_text
 
 @app.post("/procesar-excel")
-async def procesar_excel(pdfs: List[UploadFile] = File(...)):
+async def procesar_excel(
+    pdfs: List[UploadFile] = File(...),
+    db: Session = Depends(get_db)
+):
     resultados = []
 
-    async def procesar_pdf(pdf):
+    async def procesar_pdf(pdf: UploadFile):
         content = await pdf.read()
         texto = extraer_texto_original(content)
 
@@ -86,6 +93,9 @@ async def procesar_excel(pdfs: List[UploadFile] = File(...)):
             except Exception:
                 pass
 
+        # Guardar historial
+        crear_historial(db, nombre_pdf=pdf.filename, nombre_excel="facturas.xlsx")
+
         return factura
 
     tareas = [procesar_pdf(pdf) for pdf in pdfs]
@@ -119,3 +129,4 @@ async def procesar_excel(pdfs: List[UploadFile] = File(...)):
 
     return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                              headers={"Content-Disposition": "attachment; filename=facturas.xlsx"})
+Base.metadata.create_all(bind=engine)

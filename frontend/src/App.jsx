@@ -1,19 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 function ProcesadorFacturas() {
   const [files, setFiles] = useState([]);
   const [excelBlob, setExcelBlob] = useState(null);
-  const [cargando, setCargando] = useState(false);
+  const [estadoProceso, setEstadoProceso] = useState("idle");
+  const [historial, setHistorial] = useState([]);
 
   const handleFileChange = (e) => {
-    setFiles(e.target.files);
+    setFiles(Array.from(e.target.files));
     setExcelBlob(null);
+    setEstadoProceso("idle");
   };
 
   const procesarFacturas = async () => {
-    setCargando(true);
+    setEstadoProceso("procesando");
     const formData = new FormData();
-    Array.from(files).forEach(file => formData.append("pdfs", file));
+    files.forEach(file => formData.append("pdfs", file));
 
     try {
       const res = await fetch("http://localhost:8000/procesar-excel", {
@@ -23,11 +25,19 @@ function ProcesadorFacturas() {
 
       if (!res.ok) throw new Error("Error al procesar facturas");
       const blob = await res.blob();
-      setExcelBlob(blob);
+
+      if (blob && blob.size > 0) {
+        setExcelBlob(blob);
+        setEstadoProceso("completado");
+      } else {
+        console.warn("El archivo recibido está vacío");
+        setEstadoProceso("idle");
+      }
     } catch (err) {
       console.error("Error:", err);
+      setEstadoProceso("idle");
     } finally {
-      setCargando(false);
+      cargarHistorial();
     }
   };
 
@@ -40,120 +50,177 @@ function ProcesadorFacturas() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    setFiles([]);
+    setExcelBlob(null);
+    setEstadoProceso("idle");
   };
+
+  const cargarHistorial = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/historial");
+      const data = await res.json();
+      setHistorial(data);
+    } catch (err) {
+      console.error("Error cargando historial:", err);
+    }
+  };
+
+  useEffect(() => {
+    cargarHistorial();
+  }, []);
 
   return (
     <div style={{
       height: "100vh",
       width: "100vw",
-      backgroundColor: "#f9f9f9",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      flexDirection: "column",
+      backgroundColor: "#f0f4f8",
       fontFamily: "'Segoe UI', sans-serif",
-      padding: "20px"
+      padding: "40px"
     }}>
       <h1 style={{
-        fontSize: "40px",
-        marginBottom: "30px",
-        fontWeight: "700",
-        color: "#2c3e50"
+        textAlign: "center",
+        fontSize: "48px",
+        color: "#1a237e",
+        marginBottom: "40px"
       }}>
         InvoiceMind
       </h1>
 
       <div style={{
-        width: "100%",
-        maxWidth: "500px",
-        backgroundColor: "#ffffff",
-        padding: "40px",
-        borderRadius: "16px",
-        boxShadow: "0px 20px 40px rgba(0, 0, 0, 0.1)",
-        textAlign: "center"
+        display: "flex",
+        gap: "40px",
+        justifyContent: "center",
+        alignItems: "flex-start"
       }}>
-        <h2 style={{ fontSize: "24px", marginBottom: "10px" }}>Procesador de Facturas</h2>
-        <p style={{ fontWeight: "bold", margin: 0 }}>Centraliza información de facturas en PDF</p>
-        <p style={{ fontSize: "14px", color: "#666", marginBottom: "20px" }}>
-          Procesa múltiples facturas PDF y obtené un Excel con los datos estructurados.
-        </p>
-
-        <label style={{
-          backgroundColor: "#e53935",
-          color: "white",
-          padding: "12px 24px",
-          borderRadius: "6px",
-          fontWeight: "bold",
-          cursor: "pointer",
-          display: "inline-block",
-          marginBottom: "20px"
+        {/* Panel izquierdo */}
+        <div style={{
+          backgroundColor: "#ffffff",
+          padding: "30px",
+          borderRadius: "16px",
+          boxShadow: "0 8px 20px rgba(0,0,0,0.1)",
+          minWidth: "400px",
+          display: "flex",
+          flexDirection: "column"
         }}>
-          Seleccionar archivo PDF
-          <input type="file" multiple accept="application/pdf" onChange={handleFileChange} style={{ display: "none" }} />
-        </label>
+          <h2 style={{ fontSize: "24px", color: "#37474f", marginBottom: "10px" }}>Procesador de Facturas</h2>
+          <p style={{ fontWeight: "bold", marginBottom: "6px", color: "#546e7a" }}>Centraliza información de facturas digitales</p>
+          <p style={{ color: "#607d8b", marginBottom: "20px" }}>
+            Procesa múltiples facturas PDF y obtené un Excel con los datos estructurados.
+          </p>
 
-        {files.length > 0 && (
-          <div style={{
-            backgroundColor: "#f1f1f1",
-            marginTop: "10px",
-            padding: "15px",
-            borderRadius: "8px",
-            textAlign: "left",
-            maxHeight: "150px",
-            overflowY: "auto"
+          <label style={{
+            backgroundColor: "#d32f2f",
+            color: "white",
+            padding: "12px 20px",
+            borderRadius: "10px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            textAlign: "center",
+            marginBottom: "16px"
           }}>
-            <p style={{ margin: 0, fontWeight: "bold", color: "#2e7d32" }}>PDFs cargados:</p>
-            <ul style={{ margin: "10px 0", paddingLeft: "20px", fontSize: "14px" }}>
-              {Array.from(files).map((file, index) => (
-                <li key={index}>{file.name}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+            Seleccionar archivos PDF
+            <input type="file" multiple accept="application/pdf" onChange={handleFileChange} style={{ display: "none" }} />
+          </label>
 
-        <div style={{ marginTop: "30px" }}>
-          {cargando ? (
-            <div style={{ marginTop: "10px" }}>
-              <div style={{
-                width: "36px",
-                height: "36px",
-                border: "5px solid #ddd",
-                borderTop: "5px solid #0077ff",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-                margin: "0 auto"
-              }} />
-              <p style={{ marginTop: "10px", color: "#0077ff", fontWeight: "500" }}>Procesando...</p>
+          {files.length > 0 && (
+            <div style={{
+              border: "2px dashed #90caf9",
+              backgroundColor: "#e3f2fd",
+              borderRadius: "10px",
+              padding: "12px",
+              marginBottom: "20px"
+            }}>
+              <p style={{ fontWeight: "bold", color: "#1565c0" }}>📄 Archivos seleccionados:</p>
+              <ul style={{ listStyle: "none", paddingLeft: "10px", color: "#0d47a1", marginTop: "8px" }}>
+                {files.map((f, i) => (
+                  <li key={i}>• {f.name}</li>
+                ))}
+              </ul>
             </div>
-          ) : (
-            <button
-              onClick={excelBlob ? descargarExcel : procesarFacturas}
-              disabled={files.length === 0}
-              style={{
-                backgroundColor: excelBlob ? "#0077ff" : "#00c853",
-                color: "#fff",
-                border: "none",
-                padding: "12px 24px",
-                borderRadius: "6px",
-                fontWeight: "bold",
-                cursor: "pointer",
-                fontSize: "14px"
-              }}
-            >
-              {excelBlob ? "Descargar Excel" : "Procesar y Generar Excel"}
-            </button>
           )}
+
+          {/* Botones y estados */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px", alignItems: "center" }}>
+            {estadoProceso === "idle" && (
+              <button
+                onClick={procesarFacturas}
+                disabled={files.length === 0}
+                style={{
+                  backgroundColor: "#43a047",
+                  color: "#fff",
+                  border: "none",
+                  padding: "12px 20px",
+                  borderRadius: "10px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  width: "100%"
+                }}>
+                Procesar y Generar Excel
+              </button>
+            )}
+
+            {estadoProceso === "procesando" && (
+              <div className="circle-loader"></div>
+            )}
+
+            {estadoProceso === "completado" && excelBlob && (
+              <button
+                onClick={descargarExcel}
+                style={{
+                  backgroundColor: "#00796b",
+                  color: "#fff",
+                  border: "none",
+                  padding: "12px 20px",
+                  borderRadius: "10px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  width: "100%"
+                }}>
+                Descargar Excel
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Historial */}
+        <div style={{
+          backgroundColor: "#ffffff",
+          padding: "24px",
+          borderRadius: "16px",
+          boxShadow: "0 8px 20px rgba(0,0,0,0.1)",
+          minWidth: "400px"
+        }}>
+          <h3 style={{ marginBottom: "16px", color: "#1a237e", fontSize: "20px" }}>📚 Historial de Archivos</h3>
+          <ul style={{ paddingLeft: "20px", color: "#37474f" }}>
+            {historial.map((item, idx) => (
+              <li key={idx} style={{ marginBottom: "10px" }}>
+                <strong>{item.nombre_pdf}</strong><br />
+                <a href={`http://localhost:8000/exports/${item.nombre_excel}`} target="_blank" rel="noreferrer" style={{ color: "#0d47a1" }}>
+                  
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
-      <style>
-        {`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}
-      </style>
+      {/* Spinner CSS circular */}
+      <style>{`
+        .circle-loader {
+          width: 42px;
+          height: 42px;
+          border: 5px solid #cfd8dc;
+          border-top: 5px solid #42a5f5;
+          border-radius: 50%;
+          animation: girar 0.8s linear infinite;
+        }
+
+        @keyframes girar {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
