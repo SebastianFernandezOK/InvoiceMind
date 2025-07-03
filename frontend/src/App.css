@@ -1,0 +1,394 @@
+/* Apple-inspired design - Global styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  font-weight: 400;
+  background: linear-gradient(135deg, #e6f3ff 0%, #cce7ff 50%, #b3dbff 100%);
+  min-height: 100vh;
+  color: #1d1d1f;
+  line-height: 1.47059;
+  letter-spacing: -0.022em;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  color: #1d1d1f;
+  margin-bottom: 0.5em;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+}
+
+h1 {
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1.07143;
+  letter-spacing: -0.005em;
+  margin-bottom: 1rem;
+  text-align: center;
+  width: 100%;
+}
+
+h2 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1.125;
+  letter-spacing: -0.003em;
+  margin-bottom: 0.8rem;
+}
+
+h3 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2857;
+  letter-spacing: -0.002em;
+  margin-bottom: 0.6rem;
+}
+
+p {
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: #86868b;
+  margin-bottom: 1rem;
+  line-height: 1.381;
+}
+
+/* Layout containers */
+.centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  padding: 1rem 2rem 3rem 2rem;
+  text-align: center;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* Modern cards - Apple style */
+.card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  padding: 3rem 2.5rem;
+  margin: 1.5rem 0;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  max-width: 500px;
+  width: 100%;
+}
+
+.card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
+}
+
+.card-large {
+  max-width: 800px;
+  padding: 3.5rem 3rem;
+}
+
+/* Buttons - Apple style */
+.btn-main {
+  background: #007aff;
+  color: white;
+  border: none;
+  border-radius: 24px;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  margin: 0.5rem;
+  min-width: 140px;
+  font-family: inherit;
+  letter-spacing: -0.022em;
+}
+
+.btn-main:hover {
+  background: #0056d3;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 122, 255, 0.3);
+}
+
+.btn-main:active {
+  transform: translateY(0);
+  background: #004bb8;
+}
+
+.btn-secondary {
+  background: rgba(0, 122, 255, 0.1);
+  color: #007aff;
+  border: 1px solid rgba(0, 122, 255, 0.2);
+  border-radius: 24px;
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  margin: 0.5rem;
+  font-family: inherit;
+}
+
+.btn-secondary:hover {
+  background: rgba(0, 122, 255, 0.2);
+  border-color: rgba(0, 122, 255, 0.4);
+}
+
+/* Button group styles for tight spacing */
+.button-group {
+  gap: 0 !important;
+}
+
+.button-group > * {
+  margin: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.button-group > button,
+.button-group > .btn-main {
+  border-radius: 12px !important;
+  margin-bottom: 0.05rem !important;
+}
+
+.button-group > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Form elements */
+.form-group {
+  margin-bottom: 1.5rem;
+  text-align: left;
+  width: 100%;
+}
+
+.form-label {
+  display: block;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #1d1d1f;
+  margin-bottom: 0.5rem;
+  font-family: inherit;
+}
+
+.form-input {
+  width: 100%;
+  padding: 1rem 1.2rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1d1d1f;
+  font-size: 1rem;
+  font-weight: 400;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  font-family: inherit;
+}
+
+.form-input::placeholder {
+  color: #86868b;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #007aff;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+}
+
+/* File upload area */
+.upload-area {
+  background: rgba(255, 255, 255, 0.6);
+  border: 2px dashed rgba(0, 122, 255, 0.3);
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  text-align: center;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  cursor: pointer;
+  margin: 2rem 0;
+}
+
+.upload-area:hover {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 122, 255, 0.5);
+}
+
+.upload-area.drag-over {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: #007aff;
+  transform: scale(1.02);
+}
+
+/* Results and data display */
+.results-container {
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.data-table th,
+.data-table td {
+  padding: 1rem 1.5rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
+  font-weight: 400;
+}
+
+.data-table th {
+  background: rgba(0, 122, 255, 0.1);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1d1d1f;
+}
+
+.data-table tr:hover {
+  background: rgba(0, 122, 255, 0.05);
+}
+
+/* Progress and loading */
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 1rem 0;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #007aff, #5ac8fa);
+  border-radius: 20px;
+  transition: width 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.loading {
+  color: #86868b;
+  font-size: 1.1rem;
+  font-weight: 400;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* Error and success messages */
+.error-message {
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.2);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  color: #ff3b30;
+  margin: 1rem 0;
+  font-weight: 500;
+}
+
+.success-message {
+  background: rgba(52, 199, 89, 0.1);
+  border: 1px solid rgba(52, 199, 89, 0.2);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  color: #34c759;
+  margin: 1rem 0;
+  font-weight: 500;
+}
+
+/* Navigation */
+.nav-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.nav-brand {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1d1d1f;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.nav-menu {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .centered {
+    padding: 2rem 1rem;
+  }
+  
+  .card {
+    padding: 2rem 1.5rem;
+    margin: 1rem 0;
+    flex: none !important;
+    min-width: auto !important;
+    max-width: none !important;
+  }
+  
+  h1 {
+    font-size: 2.5rem;
+  }
+  
+  h2 {
+    font-size: 2rem;
+  }
+  
+  .btn-main {
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    min-width: 120px;
+  }
+  
+  .form-input {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+  
+  .nav-container {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  
+  .nav-menu {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 1024px) {
+  .card {
+    min-width: 350px !important;
+  }
+}

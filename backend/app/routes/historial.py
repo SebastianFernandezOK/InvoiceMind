@@ -11,4 +11,4 @@ def listar_historial(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)  # Protegido
 ):
-    return crud_obtener_historial(db)
+    return crud_obtener_historial(db, current_user.id)

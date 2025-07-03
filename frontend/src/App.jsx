@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ProcesadorFacturas from "./components/ProcesadorFacturas";
+import HistorialExcel from "./components/HistorialExcel";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import RequireAuth from "./components/RequireAuth";
+import "./App.css";
 
 function App() {
   return (
@@ -23,6 +25,14 @@ function App() {
           element={
             <RequireAuth>
               <ProcesadorFacturas />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/historial-excel"
+          element={
+            <RequireAuth>
+              <HistorialExcel />
             </RequireAuth>
           }
         />

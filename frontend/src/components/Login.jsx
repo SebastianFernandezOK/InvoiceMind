@@ -20,6 +20,12 @@ export default function Login() {
       }
       const data = await res.json();
       localStorage.setItem("token", data.access_token);
+      
+      // Guardar información del usuario
+      if (data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+      
       window.location.href = "/procesar-facturas"; // Redirige al procesador de facturas
     } catch {
       setError("Error de red");
@@ -27,84 +33,66 @@ export default function Login() {
   };
 
   return (
-    <form onSubmit={handleLogin} style={{
-      width: "100vw",
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
-      alignItems: "center",
-      background: "linear-gradient(120deg, #e3f2fd 0%, #fff 100%)",
-      margin: 0,
-      padding: 0,
-    }}>
-      <div style={{
-        width: 400,
-        background: "#fff",
-        padding: 40,
-        borderRadius: 18,
-        boxShadow: "0 8px 32px #1a237e22",
-        display: "flex",
-        flexDirection: "column",
-        gap: 18,
-        alignItems: "center"
-      }}>
-        <h2 style={{ textAlign: "center", color: "#1a237e", marginBottom: 18, fontWeight: 700, letterSpacing: 1 }}>Login</h2>
-        <input 
-          placeholder="Email" 
-          value={email} 
-          onChange={e => setEmail(e.target.value)} 
-          style={{ 
-            width: "100%", 
-            marginBottom: 14, 
-            padding: 14, 
-            borderRadius: 8, 
-            border: "1px solid #bdbdbd", 
-            fontSize: 18, 
-            outline: "none", 
-            transition: "border 0.2s", 
-            boxSizing: "border-box" 
-          }} 
-        />
-        <input 
-          placeholder="Password" 
-          type="password" 
-          value={password} 
-          onChange={e => setPassword(e.target.value)} 
-          style={{ 
-            width: "100%", 
-            marginBottom: 14, 
-            padding: 14, 
-            borderRadius: 8, 
-            border: "1px solid #bdbdbd", 
-            fontSize: 18, 
-            outline: "none", 
-            transition: "border 0.2s", 
-            boxSizing: "border-box" 
-          }} 
-        />
-        <button 
-          type="submit" 
-          style={{ 
-            width: "100%", 
-            background: "linear-gradient(90deg, #1a237e 60%, #3949ab 100%)", 
-            color: "#fff", 
-            padding: 14, 
-            border: 0, 
-            borderRadius: 8, 
-            fontWeight: 600, 
-            fontSize: 18, 
-            letterSpacing: 1, 
-            boxShadow: "0 2px 8px #1a237e22", 
-            cursor: "pointer", 
-            marginTop: 6
-          }}
-        >Entrar</button>
-        {error && <div style={{color:"#d32f2f", marginTop: 12, fontWeight: 500, fontSize: 16}}>{error}</div>}
-        <div style={{ marginTop: 18, textAlign: "center", fontSize: 16 }}>
-          ¿No tienes cuenta? <a href="/register" style={{ color: "#3949ab", textDecoration: "underline" }}>Regístrate</a>
-        </div>
+    <div className="centered">
+      <div className="card">
+        <h1 style={{ fontSize: "2.5rem", marginBottom: "1rem", color: "#1d1d1f" }}>Iniciar Sesión</h1>
+        <p style={{ marginBottom: "2rem", color: "#86868b" }}>Accede a tu cuenta de InvoiceMind</p>
+        
+        <form onSubmit={handleLogin} style={{ width: "100%" }}>
+          <div className="form-group">
+            <label className="form-label">Email</label>
+            <input 
+              type="email"
+              placeholder="tucorreo@ejemplo.com" 
+              value={email} 
+              onChange={e => setEmail(e.target.value)} 
+              className="form-input"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Contraseña</label>
+            <input 
+              type="password"
+              placeholder="••••••••" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+              className="form-input"
+              required
+            />
+          </div>
+
+          <button type="submit" className="btn-main" style={{ width: "100%", marginTop: "1rem" }}>
+            Iniciar Sesión
+          </button>
+
+          {error && (
+            <div className="error-message" style={{ marginTop: "1rem" }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{ 
+            marginTop: "2rem", 
+            textAlign: "center", 
+            fontSize: "1.1rem", 
+            fontWeight: "500" 
+          }}>
+            ¿No tienes cuenta?{" "}
+            <a 
+              href="/register" 
+              style={{ 
+                color: "#007aff", 
+                textDecoration: "none",
+                fontWeight: "500"
+              }}
+            >
+              Regístrate aquí
+            </a>
+          </div>
+        </form>
       </div>
-    </form>
+    </div>
   );
 }

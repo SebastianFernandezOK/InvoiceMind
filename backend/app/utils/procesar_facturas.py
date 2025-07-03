@@ -12,7 +12,7 @@ from app.utils.completar_llm import completar_con_llm, campos_incompletos
 from app.utils.pdf_utils import es_factura_escaneada, extraer_texto_original
 import traceback
 
-async def procesar_factura_pdf(pdf, db: Optional[Session] = None, user_email: Optional[str] = None):
+async def procesar_factura_pdf(pdf, db: Optional[Session] = None, user_email: Optional[str] = None, user_id: Optional[int] = None):
     try:
         content = await pdf.read()
         texto = ""
@@ -63,14 +63,9 @@ async def procesar_factura_pdf(pdf, db: Optional[Session] = None, user_email: Op
                     factura = await completar_con_llm(factura, pdf_bytes=content)
             except Exception as e:
                 print(f"Error LLM: {e}")
-        if db is not None:
-            user_id = None
-            if user_email:
-                user = db.query(User).filter(User.email == user_email).first()
-                if user:
-                    user_id = user.id
-            # Guardar el PDF binario en el historial
-            crear_historial(db, nombre_pdf=getattr(pdf, 'filename', 'sin_nombre'), nombre_excel="facturas.xlsx", pdf_data=content)
+        if db is not None and user_id is not None:
+            # Guardar el PDF binario en el historial asociado al usuario
+            crear_historial(db, nombre_pdf=getattr(pdf, 'filename', 'sin_nombre'), user_id=user_id, nombre_excel="facturas.xlsx", pdf_data=content)
         fila = {
             "fecha_emision": factura.get("fecha_emision", ""),
             "tipo": factura.get("tipo", ""),
@@ -93,9 +88,9 @@ async def procesar_factura_pdf(pdf, db: Optional[Session] = None, user_email: Op
         traceback.print_exc()
         return None
 
-async def procesar_lote_facturas(pdfs: List, db: Optional[Session] = None, user_email: Optional[str] = None):
+async def procesar_lote_facturas(pdfs: List, db: Optional[Session] = None, user_email: Optional[str] = None, user_id: Optional[int] = None):
     filas = []
-    tareas = [procesar_factura_pdf(pdf, db=db, user_email=user_email) for pdf in pdfs]
+    tareas = [procesar_factura_pdf(pdf, db=db, user_email=user_email, user_id=user_id) for pdf in pdfs]
     resultados = await asyncio.gather(*tareas)
     for fila in resultados:
         if fila:
