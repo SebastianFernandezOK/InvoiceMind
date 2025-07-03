@@ -1,5 +1,5 @@
 # app/models/historial.py
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, LargeBinary
 from datetime import datetime
 from app.core.database import Base
 
@@ -12,3 +12,4 @@ class HistorialArchivo(Base):
     nombre_excel = Column(String, nullable=False)
     fecha_procesado = Column(DateTime, default=datetime.utcnow)
     estado = Column(String, default="completado")
+    pdf_data = Column(LargeBinary, nullable=True)  # Guarda el binario del PDF

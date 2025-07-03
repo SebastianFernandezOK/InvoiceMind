@@ -1,0 +1,16 @@
+# InvoiceMind Backend Requirements
+fastapi
+uvicorn
+sqlalchemy
+python-multipart
+python-dotenv
+pymupdf  # PyMuPDF
+numpy
+opencv-python
+pyzbar
+beautifulsoup4
+google-generativeai
+python-jose
+passlib[bcrypt]
+aiosqlite
+openpyxl

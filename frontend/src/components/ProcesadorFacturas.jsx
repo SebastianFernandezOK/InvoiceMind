@@ -3,8 +3,10 @@ import { useState, useEffect } from "react";
 function ProcesadorFacturas() {
   const [files, setFiles] = useState([]);
   const [excelBlob, setExcelBlob] = useState(null);
-  const [estadoProceso, setEstadoProceso] = useState("idle"); // 'idle' | 'procesando' | 'completado'
+  const [estadoProceso, setEstadoProceso] = useState("idle");
   const [historial, setHistorial] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(null);
 
   const handleFileChange = (e) => {
     setFiles(Array.from(e.target.files));
@@ -20,23 +22,28 @@ function ProcesadorFacturas() {
     try {
       const res = await fetch("http://localhost:8000/procesar-excel", {
         method: "POST",
-        body: formData
+        body: formData,
+        headers: {
+          Authorization: "Bearer " + localStorage.getItem("token")
+        }
       });
+
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+        return;
+      }
 
       if (!res.ok) throw new Error("Error al procesar facturas");
       const blob = await res.blob();
-
-      console.log("Blob recibido", blob);
 
       if (blob && blob.size > 0) {
         setExcelBlob(blob);
         setEstadoProceso("completado");
       } else {
-        console.warn("El archivo recibido está vacío");
         setEstadoProceso("idle");
       }
     } catch (err) {
-      console.error("Error:", err);
       setEstadoProceso("idle");
     } finally {
       cargarHistorial();
@@ -53,7 +60,6 @@ function ProcesadorFacturas() {
     link.click();
     document.body.removeChild(link);
 
-    // Limpiar después de descargar
     setFiles([]);
     setExcelBlob(null);
     setEstadoProceso("idle");
@@ -61,12 +67,31 @@ function ProcesadorFacturas() {
 
   const cargarHistorial = async () => {
     try {
-      const res = await fetch("http://localhost:8000/historial");
+      const res = await fetch("http://localhost:8000/historial", {
+        headers: {
+          Authorization: "Bearer " + localStorage.getItem("token")
+        }
+      });
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+        return;
+      }
       const data = await res.json();
       setHistorial(data);
     } catch (err) {
-      console.error("Error cargando historial:", err);
+      // Error manejado
     }
+  };
+
+  const handleVerPdf = (item) => {
+    setPdfUrl(`http://localhost:8000/archivos/${encodeURIComponent(item.nombre_pdf)}`);
+    setModalOpen(true);
+  };
+
+  const cerrarModal = () => {
+    setModalOpen(false);
+    setPdfUrl(null);
   };
 
   useEffect(() => {
@@ -77,98 +102,108 @@ function ProcesadorFacturas() {
     <div style={{
       height: "100vh",
       width: "100vw",
-      backgroundColor: "#f5f5f5",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      fontFamily: "sans-serif"
+      backgroundColor: "#f0f4f8",
+      fontFamily: "'Segoe UI', sans-serif",
+      padding: "40px"
     }}>
+      <h1 style={{
+        textAlign: "center",
+        fontSize: "48px",
+        color: "#1a237e",
+        marginBottom: "40px"
+      }}>
+        InvoiceMind
+      </h1>
+
       <div style={{
         display: "flex",
         gap: "40px",
+        justifyContent: "center",
         alignItems: "flex-start"
       }}>
         {/* Panel izquierdo */}
         <div style={{
-          backgroundColor: "#fff",
+          backgroundColor: "#ffffff",
           padding: "30px",
-          borderRadius: "12px",
-          boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-          minWidth: "350px"
+          borderRadius: "16px",
+          boxShadow: "0 8px 20px rgba(0,0,0,0.1)",
+          minWidth: "400px",
+          display: "flex",
+          flexDirection: "column"
         }}>
-          <h2 style={{ fontSize: "22px", color: "#002244", marginBottom: "10px" }}>Procesador de Facturas</h2>
-          <p style={{ fontWeight: "bold", marginBottom: "6px" }}>Centraliza información de facturas en PDF</p>
-          <p style={{ color: "#555", marginBottom: "20px" }}>
+          <h2 style={{ fontSize: "24px", color: "#37474f", marginBottom: "10px" }}>Procesador de Facturas</h2>
+          <p style={{ fontWeight: "bold", marginBottom: "6px", color: "#546e7a" }}>Centraliza información de facturas digitales</p>
+          <p style={{ color: "#607d8b", marginBottom: "20px" }}>
             Procesa múltiples facturas PDF y obtené un Excel con los datos estructurados.
           </p>
 
-          {/* Selector de archivos */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <label style={{
-              backgroundColor: "#e53935",
-              color: "white",
-              padding: "10px 20px",
-              borderRadius: "8px",
-              fontWeight: "bold",
-              cursor: "pointer",
-              textAlign: "center"
+          <label style={{
+            backgroundColor: "#d32f2f",
+            color: "white",
+            padding: "12px 20px",
+            borderRadius: "10px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            textAlign: "center",
+            marginBottom: "16px"
+          }}>
+            Seleccionar archivos PDF
+            <input type="file" multiple accept="application/pdf" onChange={handleFileChange} style={{ display: "none" }} />
+          </label>
+
+          {files.length > 0 && (
+            <div style={{
+              border: "2px dashed #90caf9",
+              backgroundColor: "#e3f2fd",
+              borderRadius: "10px",
+              padding: "12px",
+              marginBottom: "20px"
             }}>
-              Seleccionar archivo PDF
-              <input type="file" multiple accept="application/pdf" onChange={handleFileChange} style={{ display: "none" }} />
-            </label>
+              <p style={{ fontWeight: "bold", color: "#1565c0" }}>📄 Archivos seleccionados:</p>
+              <ul style={{ listStyle: "none", paddingLeft: "10px", color: "#0d47a1", marginTop: "8px" }}>
+                {files.map((f, i) => (
+                  <li key={i}>• {f.name}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-            {/* Caja de archivos seleccionados */}
-            {files.length > 0 && (
-              <div style={{
-                border: "1px solid #ccc",
-                borderRadius: "8px",
-                padding: "10px",
-                backgroundColor: "#fafafa"
-              }}>
-                <p style={{ fontWeight: "bold", color: "#444", marginBottom: "6px" }}>Archivos seleccionados:</p>
-                <ul style={{ fontSize: "14px", paddingLeft: "18px", color: "#333", margin: 0 }}>
-                  {files.map((f, i) => (
-                    <li key={i}>{f.name}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Estados del botón principal */}
+          {/* Botones y estados */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px", alignItems: "center" }}>
             {estadoProceso === "idle" && (
               <button
                 onClick={procesarFacturas}
                 disabled={files.length === 0}
                 style={{
-                  backgroundColor: "#00c853",
+                  backgroundColor: "#43a047",
                   color: "#fff",
                   border: "none",
-                  padding: "10px 20px",
-                  borderRadius: "8px",
+                  padding: "12px 20px",
+                  borderRadius: "10px",
                   fontWeight: "bold",
-                  cursor: "pointer"
+                  cursor: "pointer",
+                  width: "100%"
                 }}>
                 Procesar y Generar Excel
               </button>
             )}
 
             {estadoProceso === "procesando" && (
-              <div style={{ display: "flex", justifyContent: "center", marginTop: "10px" }}>
-                <div className="spinner"></div>
-              </div>
+              <div className="circle-loader"></div>
             )}
 
             {estadoProceso === "completado" && excelBlob && (
               <button
                 onClick={descargarExcel}
                 style={{
-                  backgroundColor: "#007f00",
+                  backgroundColor: "#00796b",
                   color: "#fff",
                   border: "none",
-                  padding: "10px 20px",
-                  borderRadius: "8px",
+                  padding: "12px 20px",
+                  borderRadius: "10px",
                   fontWeight: "bold",
-                  cursor: "pointer"
+                  cursor: "pointer",
+                  width: "100%"
                 }}>
                 Descargar Excel
               </button>
@@ -178,38 +213,92 @@ function ProcesadorFacturas() {
 
         {/* Historial */}
         <div style={{
-          backgroundColor: "#fff",
-          padding: "20px",
-          borderRadius: "12px",
-          boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-          minWidth: "350px"
+          backgroundColor: "#ffffff",
+          padding: "24px",
+          borderRadius: "16px",
+          boxShadow: "0 8px 20px rgba(0,0,0,0.1)",
+          minWidth: "400px"
         }}>
-          <h3 style={{ marginBottom: "10px", color: "#002244" }}>Historial de Archivos</h3>
-          <ul>
+          <h3 style={{ marginBottom: "16px", color: "#1a237e", fontSize: "20px" }}>📚 Historial de Archivos</h3>
+          <ul style={{ paddingLeft: "20px", color: "#37474f" }}>
+            {historial.length === 0 && (
+              <li>No hay archivos en el historial.</li>
+            )}
             {historial.map((item, idx) => (
-              <li key={idx} style={{ marginBottom: "10px" }}>
-                <strong>{item.nombre_pdf}</strong><br />
-                <a href={`http://localhost:8000/exports/${item.nombre_excel}`} target="_blank" rel="noreferrer">
-                  Descargar Excel consolidado
-                </a>
+              <li
+                key={idx}
+                style={{ marginBottom: "10px", cursor: "pointer", textDecoration: "underline" }}
+                onClick={() => handleVerPdf(item)}
+                title="Ver PDF"
+              >
+                <strong>{item.nombre_pdf}</strong>
               </li>
             ))}
           </ul>
         </div>
       </div>
 
-      {/* Spinner CSS */}
-      <style>{`
-        .spinner {
-          width: 32px;
-          height: 32px;
-          border: 4px solid #0077cc;
-          border-top: 4px solid transparent;
-          border-radius: 50%;
-          animation: spin 0.7s linear infinite;
-        }
+      {/* Modal para mostrar el PDF */}
+      {modalOpen && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: "#fff",
+            borderRadius: "12px",
+            padding: "24px",
+            maxWidth: "90vw",
+            maxHeight: "90vh",
+            boxShadow: "0 8px 32px #1a237e33",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center"
+          }}>
+            <button
+              onClick={cerrarModal}
+              style={{
+                alignSelf: "flex-end",
+                background: "#d32f2f",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                padding: "6px 14px",
+                marginBottom: "12px",
+                fontWeight: 500,
+                cursor: "pointer"
+              }}
+            >
+              Cerrar
+            </button>
+            <iframe
+              src={pdfUrl}
+              title="Factura PDF"
+              style={{ width: "70vw", height: "70vh", border: "none", borderRadius: "8px" }}
+            />
+          </div>
+        </div>
+      )}
 
-        @keyframes spin {
+      {/* Spinner CSS circular */}
+      <style>{`
+        .circle-loader {
+          width: 42px;
+          height: 42px;
+          border: 5px solid #cfd8dc;
+          border-top: 5px solid #42a5f5;
+          border-radius: 50%;
+          animation: girar 0.8s linear infinite;
+        }
+        @keyframes girar {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
